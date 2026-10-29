@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   Plus, MessageSquare, Trash2, Sliders, ChevronDown, 
-  ChevronRight, Sparkles, BookOpen, UserCheck, Code, Compass, HelpCircle
+  ChevronRight, Sparkles, BookOpen, UserCheck, Code, Compass, HelpCircle,
+  Download, FileText, FileCode
 } from 'lucide-react';
 import { ChatSession, ModelConfig } from '../types';
+import { exportSessionAsMarkdown, exportSessionAsJson } from '../utils/exportUtils';
 
 interface SidebarProps {
   sessions: ChatSession[];
@@ -57,6 +59,23 @@ export default function Sidebar({
 }: SidebarProps) {
   const [showPresets, setShowPresets] = useState(true);
   const [customPrompt, setCustomPrompt] = useState(config.systemInstruction);
+  const [exportMenuSessionId, setExportMenuSessionId] = useState<string | null>(null);
+  const exportContainerRef = useRef<HTMLDivElement | null>(null);
+
+  // Close export dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportContainerRef.current && !exportContainerRef.current.contains(event.target as Node)) {
+        setExportMenuSessionId(null);
+      }
+    }
+    if (exportMenuSessionId) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [exportMenuSessionId]);
 
   const applyPreset = (prompt: string) => {
     setCustomPrompt(prompt);
@@ -105,11 +124,11 @@ export default function Sidebar({
               <p className="text-xs text-gray-400">No active sessions. Creating a prompt will start one automatically.</p>
             </div>
           ) : (
-            <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar pr-1">
+            <div className="space-y-1 max-h-48 overflow-y-auto custom-scrollbar pr-1 relative" ref={exportContainerRef}>
               {sessions.map(sess => (
                 <div
                   key={sess.id}
-                  className={`group flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                  className={`group relative flex items-center justify-between rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                     sess.id === activeSessionId
                       ? 'bg-indigo-50 text-indigo-900 shadow-3xs'
                       : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
@@ -117,18 +136,79 @@ export default function Sidebar({
                 >
                   <button
                     onClick={() => onSelectSession(sess.id)}
-                    className="flex flex-1 items-center space-x-2.5 text-left truncate"
+                    className="flex flex-1 items-center space-x-2.5 text-left truncate mr-1"
                   >
                     <MessageSquare className={`h-4 w-4 shrink-0 ${sess.id === activeSessionId ? 'text-indigo-600' : 'text-gray-400'}`} />
-                    <span className="truncate pr-2">{sess.title}</span>
+                    <span className="truncate">{sess.title}</span>
                   </button>
-                  <button
-                    onClick={() => onDeleteSession(sess.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-150 text-gray-400 hover:text-red-600 transition-all shrink-0"
-                    title="Delete session"
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
+
+                  <div className="flex items-center space-x-0.5 shrink-0">
+                    {/* Export button */}
+                    <div className="relative">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setExportMenuSessionId(prev => prev === sess.id ? null : sess.id);
+                        }}
+                        disabled={sess.messages.length === 0}
+                        className={`p-1 rounded transition-all ${
+                          sess.messages.length === 0
+                            ? 'opacity-0 cursor-not-allowed text-gray-300'
+                            : exportMenuSessionId === sess.id
+                            ? 'opacity-100 bg-indigo-150 text-indigo-700'
+                            : 'opacity-0 group-hover:opacity-100 hover:bg-gray-150 text-gray-400 hover:text-indigo-600'
+                        }`}
+                        title={sess.messages.length > 0 ? "Export session backup" : "No messages to export"}
+                        aria-label="Export chat session"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                      </button>
+
+                      {/* Floating export options menu for this session */}
+                      {exportMenuSessionId === sess.id && (
+                        <div 
+                          className="absolute right-0 top-full mt-1 w-44 rounded-lg border border-gray-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5 z-50 animate-in fade-in zoom-in-95 duration-100"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <div className="px-1.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 border-b border-gray-100 mb-1">
+                            Export format
+                          </div>
+                          <button
+                            onClick={() => {
+                              exportSessionAsMarkdown(sess, config);
+                              setExportMenuSessionId(null);
+                            }}
+                            className="w-full flex items-center space-x-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-800 rounded transition-colors text-left font-medium"
+                          >
+                            <FileText className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                            <span>Markdown (.md)</span>
+                          </button>
+                          <button
+                            onClick={() => {
+                              exportSessionAsJson(sess, config);
+                              setExportMenuSessionId(null);
+                            }}
+                            className="w-full flex items-center space-x-2 px-2 py-1.5 text-xs text-gray-700 hover:bg-indigo-50 hover:text-indigo-800 rounded transition-colors text-left font-medium mt-0.5"
+                          >
+                            <FileCode className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                            <span>JSON (.json)</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Delete button */}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDeleteSession(sess.id);
+                      }}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-150 text-gray-400 hover:text-red-600 transition-all"
+                      title="Delete session"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>

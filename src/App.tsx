@@ -222,6 +222,7 @@ export default function App() {
         isPending={isPending}
         showSettings={showSettings}
         onShowSettings={() => setShowSettings(!showSettings)}
+        activeSession={activeSessionData}
       />
 
       {/* Main app panel */}
