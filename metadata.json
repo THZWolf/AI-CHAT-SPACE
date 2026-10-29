@@ -1,0 +1,8 @@
+{
+  "name": "AI Chat Space",
+  "description": "An intuitive full-stack AI conversational workspace powered by Gemini with search grounding, audio replies, and cross-modal attachment uploads.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
